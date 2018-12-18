@@ -14,6 +14,7 @@ class Drone(object):
         self.interval = None
         self.vehicle = None
         self.socketIO = None
+        self.currentLocation = None
         # test square path drone
         self.dronePosLisIdx = 0
         self.dronePosList = []
@@ -77,12 +78,16 @@ class Drone(object):
     def connect(self, droneIP, socketIP, socketPort):
         self.vehicle = connect(droneIP, wait_ready=True)
         self.arm_and_takeoff(10)
+        self.vehicle.groundspeed = 5
+        self.currentLocation = self.vehicle.location.global_relative_frame
+        # connect to the web API
         self.socketIO = SocketIO(socketIP, socketPort, LoggingNamespace) 
         self.socketIO.on("on_aaa_response", self.on_aaa_response)
         self.socketIO.wait()
     
     def delete(self):
         #self.clear_interval(self.interval)
+        self.vehicle.mode = VehicleMode("LAND") 
         self.vehicle.close()
 
     def clear_interval(self, interval_id):
@@ -164,5 +169,45 @@ class Drone(object):
                 print "Reached target altitude"
                 break
             time.sleep(1)
+
+    def get_distance_metres(self, aLocation1, aLocation2):
+        """
+        Returns the ground distance in metres between two LocationGlobal objects.
+
+        This method is an approximation, and will not be accurate over large distances and close to the 
+        earth's poles. It comes from the ArduPilot test code: 
+        https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
+        """
+        dlat = aLocation2.lat - aLocation1.lat
+        dlong = aLocation2.lon - aLocation1.lon
+        return math.sqrt((dlat*dlat) + (dlong*dlong)) * 1.113195e5
+
+    def goto(self, targetLocation):
+        """
+        Moves the vehicle to a position dNorth metres North and dEast metres East of the current position.
+
+        The method takes a function pointer argument with a single `dronekit.lib.LocationGlobal` parameter for 
+        the target position. This allows it to be called with different position-setting commands. 
+        By default it uses the standard method: dronekit.lib.Vehicle.simple_goto().
+
+        The method reports the distance to target every two seconds.
+        """
+        
+        # self.currentLocation = self.vehicle.location.global_relative_frame
+        
+        targetDistance = self.get_distance_metres(self.currentLocation, targetLocation)
+        print(targetDistance)
+        self.vehicle.simple_goto(targetLocation)
+        
+
+        while self.vehicle.mode.name=="GUIDED": #Stop action if we are no longer in guided mode.
+            #print "DEBUG: mode: %s" % vehicle.mode.name
+            remainingDistance=self.get_distance_metres(self.currentLocation, targetLocation)
+            print "Distance to target: ", remainingDistance
+            if remainingDistance<=targetDistance*0.01: #Just below target, in case of undershoot.
+                print "Reached target"
+                break
+            time.sleep(2)
+
 
 

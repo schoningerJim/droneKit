@@ -1,5 +1,6 @@
 # Python 2.7
 from classes.drone import Drone
+from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGlobal
 
 def main():
     try:
@@ -9,6 +10,9 @@ def main():
 
         droneTest = Drone()
         droneTest.connect(ipDrone, ipSocket, portSocket)
+        # goto Test
+        targetlocation=LocationGlobal(35.820088, 139.589331, 10)
+        droneTest.goto(targetlocation)
 
     except KeyboardInterrupt:
         droneTest.delete()
