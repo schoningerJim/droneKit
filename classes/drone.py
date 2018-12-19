@@ -8,98 +8,57 @@ import math
 from classes.interval import Interval
 
 class Drone(object):
+
+    """
+    Class to define a drone object.
+    """
+
     def __init__(self):
-        self.intervals = {}
-        self.g_id_counter = 0
-        self.interval = None
-        self.vehicle = None
-        self.socketIO = None
-        self.currentLocation = None
-        # test square path drone
-        self.dronePosLisIdx = 0
-        self.dronePosList = []
-        self.dronePosList.append({
-            "type": "marker",
-            "coordinates": [
-                139.58855534,
-                35.82004085
+        """__init__ method fro the Drone class.
 
-             ],
-            "properties": {
-                "id": str(time.time())
-            }
-        })
-        self.dronePosList.append({
-            "type": "marker",
-            "coordinates": [
-                139.588850,
-                35.820344
+        The __init__ method will set all the attribute to their default values.
 
-             ],
-            "properties": {
-                "id": str(time.time())
-            }
-        })
-        self.dronePosList.append({
-            "type": "marker",
-            "coordinates": [
-                139.589331,
-                35.820088
+        Args:
+            param1 (str): Description of `param1`.
+            param2 (:obj:`int`, optional): Description of `param2`. Multiple
+                lines are supported.
+            param3 (list(str)): Description of `param3`.
 
-             ],
-            "properties": {
-                "id": str(time.time())
-            }
-        })
-        self.dronePosList.append({
-            "type": "marker",
-            "coordinates": [
-                139.588671,
-                35.819371
+        """
 
-             ],
-            "properties": {
-                "id": str(time.time())
-            }
-        })
-        self.dronePosList.append({
-            "type": "marker",
-            "coordinates": [
-                139.588237,
-                35.819651
-
-             ],
-            "properties": {
-                "id": str(time.time())
-            }
-        })
-
+        self.__intervals = {}
+        self.__g_id_counter = 0
+        self.__interval = None
+        self.__vehicle = None
+        self.__socketIO = None
+        self.__currentLocation = None
+        
 
     def connect(self, droneIP, socketIP, socketPort):
-        self.vehicle = connect(droneIP, wait_ready=True)
-        self.arm_and_takeoff(10)
-        self.vehicle.groundspeed = 5
-        self.currentLocation = self.vehicle.location.global_relative_frame
+        self.__vehicle = connect(droneIP, wait_ready=True)
+        self.__arm_and_takeoff(10)
+        self.__vehicle.groundspeed = 5
+        self.__currentLocation = self.__vehicle.location.global_relative_frame
         # connect to the web API
-        self.socketIO = SocketIO(socketIP, socketPort, LoggingNamespace) 
-        self.socketIO.on("on_aaa_response", self.on_aaa_response)
-        self.socketIO.wait()
+        self.__socketIO = SocketIO(socketIP, socketPort, LoggingNamespace) 
+        self.__socketIO.on("on_aaa_response", self.__on_aaa_response)
+        self.__socketIO.wait(2)
     
     def delete(self):
         #self.clear_interval(self.interval)
-        self.vehicle.mode = VehicleMode("LAND") 
-        self.vehicle.close()
+        self.__vehicle.mode = VehicleMode("LAND") 
+        self.__vehicle.close()
 
-    def clear_interval(self, interval_id):
+    def __clear_interval(self, interval_id):
         # terminate this interval's while loop
-        self.intervals[interval_id].daemon_alive = False
+        self.__intervals[interval_id].daemon_alive = False
         # kill the thread
-        self.intervals[interval_id].thread.join()
+        self.__intervals[interval_id].thread.join()
         # pop out the interval from registry for reusing
-        self.intervals.pop(interval_id)
+        self.__intervals.pop(interval_id)
         print("thread killed")
     
-    def set_interval(self, interval, func):
+    def __set_interval(self, interval, func):
         interval_obj = Interval()
         # Put this interval on a new thread
         t = threading.Thread(target=interval_obj.ticktock, args=(interval, func))
@@ -109,68 +68,77 @@ class Drone(object):
 
         # Register this interval so that we can clear it later
         # using roughly generated id
-        interval_id = self.g_id_counter
-        self.g_id_counter += 1
-        self.intervals[interval_id] = interval_obj
+        interval_id = self.__g_id_counter
+        self.__g_id_counter += 1
+        self.__intervals[interval_id] = interval_obj
 
         # return interval id like it does in JavaScript
         return interval_id
 
-    def emitPosition(self):
-        if (self.dronePosLisIdx == 5):
-            self.dronePosLisIdx = 0
+    def __emitPosition(self):
+        x = {
+            "type": "marker",
+            "coordinates": [
+                self.__vehicle.location.global_relative_frame.lon,
+                self.__vehicle.location.global_relative_frame.lat
 
-        x = self.dronePosList[self.dronePosLisIdx]
-
+             ],
+            "properties": {
+                "id": str(time.time())
+            }
+        }
         # convert into JSON:
         y = json.dumps(x)
-        self.socketIO.emit("fromPy", y)
-        # we increment the counter for the index
-        self.dronePosLisIdx += 1 
+        self.__socketIO.emit("fromPy", y)
 
-    def on_aaa_response(self, *args):
+    def __on_aaa_response(self, *args):
         if(args[0] == True):
             print("connected")
             # need to set a variable to start the thread
-            self.interval = self.set_interval(1, self.emitPosition)
+            self.__interval = self.__set_interval(1, self.__emitPosition)
         else :
             print("not connected")
     
-    def arm_and_takeoff(self, aTargetAltitude):
+    def __arm_and_takeoff(self, aTargetAltitude):
         """
         Arms vehicle and fly to aTargetAltitude.
         """
 
         print "Basic pre-arm checks"
         # Don't try to arm until autopilot is ready
-        while not self.vehicle.is_armable:
+        while not self.__vehicle.is_armable:
             print " Waiting for vehicle to initialise..."
             time.sleep(1)
 
         print "Arming motors"
         # Copter should arm in GUIDED mode
-        self.vehicle.mode    = VehicleMode("GUIDED")
-        self.vehicle.armed   = True
+        self.__vehicle.mode    = VehicleMode("GUIDED")
+        self.__vehicle.armed   = True
 
         # Confirm vehicle armed before attempting to take off
-        while not self.vehicle.armed:
+        while not self.__vehicle.armed:
             print " Waiting for arming..."
             time.sleep(1)
 
         print "Taking off!"
-        self.vehicle.simple_takeoff(aTargetAltitude) # Take off to target altitude
+        self.__vehicle.simple_takeoff(aTargetAltitude) # Take off to target altitude
 
         # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command
         #  after Vehicle.simple_takeoff will execute immediately).
         while True:
-            print " Altitude: ", self.vehicle.location.global_relative_frame.alt
+            print " Altitude: ", self.__vehicle.location.global_relative_frame.alt
             #Break and return from function just below target altitude.
-            if self.vehicle.location.global_relative_frame.alt >= aTargetAltitude*0.95:
+            if self.__vehicle.location.global_relative_frame.alt >= aTargetAltitude*0.95:
                 print "Reached target altitude"
                 break
             time.sleep(1)
 
-    def get_distance_metres(self, aLocation1, aLocation2):
+
+    def setSpeed(self, speed):
+        self.__vehicle.groundspeed = speed
+
+
+    def __get_distance_metres(self, aLocation1, aLocation2):
         """
         Returns the ground distance in metres between two LocationGlobal objects.
 
@@ -185,24 +153,31 @@ class Drone(object):
     def goto(self, targetLocation):
         """
         Moves the vehicle to a position dNorth metres North and dEast metres East of the current position.
-
         The method takes a function pointer argument with a single `dronekit.lib.LocationGlobal` parameter for 
         the target position. This allows it to be called with different position-setting commands. 
         By default it uses the standard method: dronekit.lib.Vehicle.simple_goto().
-
         The method reports the distance to target every two seconds.
+
+        Args:
+               
+               param1 (type): describe
+               param2 (type): describe
+        
+        Returns:
+               returnParam (type) : describe
+
         """
         
-        # self.currentLocation = self.vehicle.location.global_relative_frame
+        self.__currentLocation = self.__vehicle.location.global_relative_frame
         
-        targetDistance = self.get_distance_metres(self.currentLocation, targetLocation)
+        targetDistance = self.__get_distance_metres(self.__currentLocation, targetLocation)
         print(targetDistance)
-        self.vehicle.simple_goto(targetLocation)
+        self.__vehicle.simple_goto(targetLocation)
         
 
-        while self.vehicle.mode.name=="GUIDED": #Stop action if we are no longer in guided mode.
+        while self.__vehicle.mode.name=="GUIDED": #Stop action if we are no longer in guided mode.
             #print "DEBUG: mode: %s" % vehicle.mode.name
-            remainingDistance=self.get_distance_metres(self.currentLocation, targetLocation)
+            remainingDistance=self.__get_distance_metres(self.__vehicle.location.global_relative_frame, targetLocation)
             print "Distance to target: ", remainingDistance
             if remainingDistance<=targetDistance*0.01: #Just below target, in case of undershoot.
                 print "Reached target"
