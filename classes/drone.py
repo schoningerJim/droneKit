@@ -14,7 +14,8 @@ class Drone(object):
     """
 
     def __init__(self):
-        """__init__ method fro the Drone class.
+        """
+        __init__ method fro the Drone class.
 
         The __init__ method will set all the attribute to their default values.
 
@@ -35,6 +36,15 @@ class Drone(object):
         
 
     def connect(self, droneIP, socketIP, socketPort):
+        """
+        The connect method is use to connect the drone obj to the real Drone using IP or usb 
+        and also use to connect the drone object to the websocket to send his information.
+
+        Args:
+            droneIP (str): The drone IP or drone usb device name use to connect 
+            socketIP (str): The websocket IP adress
+            socketPort (int): The websocket port number
+        """
         self.__vehicle = connect(droneIP, wait_ready=True)
         self.__arm_and_takeoff(10)
         self.__vehicle.groundspeed = 5
